@@ -30,7 +30,7 @@ class TaskFrame(object):
 
     def __init__(self):
         self.overed_w = None
-        self.tasks = self.load_tasks()
+        self.task_model = TaskModel()
         self.listbox = self.rebuild_listbox()
         self.body = urwid.AttrMap(urwid.Filler(self.listbox, valign="middle",
                                                height=('relative', 100),
@@ -43,25 +43,18 @@ class TaskFrame(object):
                                    unhandled_input=self.handle_input)
         self.loop.run()
 
-    def load_tasks(self):
-
-        tasks = [
-            '+1st buy milk',
-            '-2rd clean body',
-            '-3rd go to school',
-            '-测试一下很长很长的内容，这个内容真的很长。' * 3,
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-        ]
-        return TaskModel(tasks)
-
     def update_header(self, text):
         self.view.header = urwid.AttrMap(urwid.Text(text), 'foot')
+
+    def task_create(self):
+        buttons = [
+            ('OK', 'create_ok'),
+            ('CANCEL', 'create_cancel')
+        ]
+        title = 'Create New Task'
+        text = 'Task:'
+        d = AddTaskDialog(self, title, text, buttons)
+        d.show()
 
     def task_switch_mark_done(self, w, index):
         label = w.label
@@ -94,6 +87,8 @@ class TaskFrame(object):
             raise urwid.ExitMainLoop()
         if input_char in ('h', 'H'):
             self.show_help()
+        if input_char in ('a', 'A'):
+            self.task_create()
 
     def rebuild_listbox(self):
         contents = [
@@ -106,7 +101,7 @@ class TaskFrame(object):
             ),
             urwid.Divider("="),
         ]
-        for index, task in enumerate(self.tasks.all()):
+        for index, task in enumerate(self.task_model.all()):
             index_txt = format(str(index), ' <3')
             is_done_txt = '[X]' if task[0] == '+' else '[ ]'
             but_txt = '   '.join([index_txt, is_done_txt, task[1:]])
@@ -120,20 +115,30 @@ class Dialog(object):
     def __init__(self, parent, title, text, buttons, width=None, height=None):
         self.parent = parent
         self.code = None
+        self.text = text
+        self.buttons = buttons
+        contents = self.init_contents()
+        w = urwid.ListBox(urwid.SimpleFocusListWalker(contents))
+        w = urwid.LineBox(w, title=title)
+        self.w = w
+
+    def init_contents(self):
         contents = [
-            urwid.Text(text), urwid.Divider(),
+            urwid.Text(self.text),
+            urwid.Divider(),
+            self.init_buttons()
         ]
+        return contents
+
+    def init_buttons(self):
         # add buttons
         l = []
-        for name, exitcode in buttons:
+        for name, exitcode in self.buttons:
             b = urwid.Button(name, self.key_press, exitcode)
             b = urwid.AttrWrap(b, 'dlg_selectable', 'dlg_focus')
             l.append(b)
         but_box = urwid.GridFlow(l, 10, 3, 1, 'center')
-        contents.append(but_box)
-        w = urwid.ListBox(urwid.SimpleFocusListWalker(contents))
-        w = urwid.LineBox(w, title=title)
-        self.w = w
+        return but_box
 
     def show(self):
         self.old_widget = self.parent.body.original_widget
@@ -148,12 +153,48 @@ class Dialog(object):
         self.parent.dlg_buttons_press(code)
 
 
+class AddTaskDialog(Dialog):
+    class DiaEdit(urwid.Edit):
+        def keypress(self, size, key):
+            if key != 'enter':
+                return super(AddTaskDialog.DiaEdit, self).keypress(size, key)
+
+    def __init__(self, parent, title, text, buttons, width=None, height=None):
+        super(AddTaskDialog, self).__init__(parent, title, text, buttons, width, height)
+
+    def init_contents(self):
+        contents = [
+            urwid.Text(self.text),
+            # AddTaskDialog.DiaEdit(),
+            urwid.Edit(),
+            urwid.Divider(),
+            self.init_buttons()
+        ]
+        return contents
+
+
 class TaskModel(object):
-    def __init__(self, tasks):
-        self.tasks = tasks
+    def __init__(self):
+        self.tasks = self.load_tasks()
 
     def all(self):
         return self.tasks
+
+    def load_tasks(self):
+        tasks = [
+            '+1st buy milk',
+            '-2rd clean body',
+            '-3rd go to school',
+            '-测试一下很长很长的内容，这个内容真的很长。' * 3,
+            '-3rd go to school',
+            '-3rd go to school',
+            '-3rd go to school',
+            '-3rd go to school',
+            '-3rd go to school',
+            '-3rd go to school',
+            '-3rd go to school',
+        ]
+        return tasks
 
 
 if __name__ == "__main__":
