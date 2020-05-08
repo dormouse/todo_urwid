@@ -1,5 +1,5 @@
 import urwid
-
+from prj_conf import PRJ_DIR
 
 class TaskFrame(object):
     palette = [
@@ -173,28 +173,7 @@ class AddTaskDialog(Dialog):
         return contents
 
 
-class TaskModel(object):
-    def __init__(self):
-        self.tasks = self.load_tasks()
 
-    def all(self):
-        return self.tasks
-
-    def load_tasks(self):
-        tasks = [
-            '+1st buy milk',
-            '-2rd clean body',
-            '-3rd go to school',
-            '-测试一下很长很长的内容，这个内容真的很长。' * 3,
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-            '-3rd go to school',
-        ]
-        return tasks
 
 
 if __name__ == "__main__":
