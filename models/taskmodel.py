@@ -15,5 +15,17 @@ class TaskModel(object):
     def load_tasks(self):
         text = self.task_file.read_text()
         self.tasks = list(filter(lambda x: x.strip(), text.split('\n')))
-        print(self.tasks)
 
+    def create(self, txt):
+        self.tasks.append(txt)
+
+    def save_tasks(self):
+        text = '\n'.join(self.tasks)
+        self.task_file.write_text(text)
+
+    def task_switch_mark_done(self, index):
+        mark_postion = 3
+        task = self.tasks[index]
+        new_mark = 'X' if task[mark_postion] == ' ' else ' '
+        new_task = task[:mark_postion] + new_mark + task[mark_postion + 1:]
+        self.tasks[index] = new_task

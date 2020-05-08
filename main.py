@@ -1,5 +1,7 @@
 import urwid
 from prj_conf import PRJ_DIR
+from models.taskmodel import TaskModel
+
 
 class TaskFrame(object):
     palette = [
@@ -31,6 +33,9 @@ class TaskFrame(object):
     def __init__(self):
         self.overed_w = None
         self.task_model = TaskModel()
+        self.task_model.load_tasks()
+        self.list_walker = None
+        self.list_walker_header_row_count = 0
         self.listbox = self.rebuild_listbox()
         self.body = urwid.AttrMap(urwid.Filler(self.listbox, valign="middle",
                                                height=('relative', 100),
@@ -56,11 +61,30 @@ class TaskFrame(object):
         d = AddTaskDialog(self, title, text, buttons)
         d.show()
 
+    def tasks_save(self):
+        self.task_model.save_tasks()
+        header_text = [
+            ('title', "U Task"),
+            "  saved",
+        ]
+        self.update_header(header_text)
+
     def task_switch_mark_done(self, w, index):
         label = w.label
-        mark_postion = 7
+        mark_postion = 5
         new_mark = 'X' if label[mark_postion] == ' ' else ' '
         w.set_label(label[:mark_postion] + new_mark + label[mark_postion + 1:])
+        _, focus = self.list_walker.get_focus()
+        index = focus - self.list_walker_header_row_count
+        self.task_model.task_switch_mark_done(index)
+
+    def encode_label_txt(self, txt, index):
+        label_txt = format(str(index), ' <3') + txt[1:]
+        return label_txt
+
+    def decode_label_txt(self, label_txt):
+        txt = f"- {label_txt[3:]}"
+        return txt
 
     def show_help(self):
         buttons = [
@@ -71,16 +95,27 @@ class TaskFrame(object):
         d = Dialog(self, title, text, buttons)
         d.show()
 
-    def dlg_buttons_press(self, code):
-        # self.body.original_widget = self.overed_w
+    def dlg_buttons_press(self, dlg_data):
         header_text = [
             ('title', "U Task"),
-            (f"{code}"),
+            f"{dlg_data['key_code']}",
         ]
         self.update_header(header_text)
 
-    def dia_but_clicked(self, button):
-        self.body.original_widget = self.overed_w
+        if dlg_data['key_code'] == 'create_ok':
+            model_txt = f"- [ ] {dlg_data['edit_txt']}"
+            index = len(self.task_model.all())
+            button_label = self.encode_label_txt(model_txt, index)
+            self.task_model.create(model_txt)
+            but = urwid.Button(button_label,
+                               self.task_switch_mark_done,
+                               index)
+            self.list_walker.append(
+                urwid.AttrMap(but, None, focus_map='reversed')
+            )
+            self.list_walker.set_focus(
+                index + self.list_walker_header_row_count
+            )
 
     def handle_input(self, input_char):
         if input_char in ('q', 'Q'):
@@ -89,25 +124,27 @@ class TaskFrame(object):
             self.show_help()
         if input_char in ('a', 'A'):
             self.task_create()
+        if input_char in ('s', 'S'):
+            self.tasks_save()
 
     def rebuild_listbox(self):
         contents = [
             urwid.Columns(
                 [
-                    (6, urwid.Text('No.')),
+                    (4, urwid.Text('No.')),
                     (5, urwid.Text('Done')),
                     urwid.Text('Contents')
                 ], 1
             ),
             urwid.Divider("="),
         ]
+        self.list_walker_header_row_count = len(contents)
         for index, task in enumerate(self.task_model.all()):
-            index_txt = format(str(index), ' <3')
-            is_done_txt = '[X]' if task[0] == '+' else '[ ]'
-            but_txt = '   '.join([index_txt, is_done_txt, task[1:]])
-            but = urwid.Button(but_txt, self.task_switch_mark_done, index)
+            but_label = self.encode_label_txt(task, index)
+            but = urwid.Button(but_label, self.task_switch_mark_done, index)
             contents.append(urwid.AttrMap(but, None, focus_map='reversed'))
-        listbox = urwid.ListBox(urwid.SimpleFocusListWalker(contents))
+        self.list_walker = urwid.SimpleFocusListWalker(contents)
+        listbox = urwid.ListBox(self.list_walker)
         return listbox
 
 
@@ -117,6 +154,7 @@ class Dialog(object):
         self.code = None
         self.text = text
         self.buttons = buttons
+        self.old_widget = None
         contents = self.init_contents()
         w = urwid.ListBox(urwid.SimpleFocusListWalker(contents))
         w = urwid.LineBox(w, title=title)
@@ -132,12 +170,12 @@ class Dialog(object):
 
     def init_buttons(self):
         # add buttons
-        l = []
+        widgets = []
         for name, exitcode in self.buttons:
             b = urwid.Button(name, self.key_press, exitcode)
             b = urwid.AttrWrap(b, 'dlg_selectable', 'dlg_focus')
-            l.append(b)
-        but_box = urwid.GridFlow(l, 10, 3, 1, 'center')
+            widgets.append(b)
+        but_box = urwid.GridFlow(widgets, 10, 3, 1, 'center')
         return but_box
 
     def show(self):
@@ -150,7 +188,10 @@ class Dialog(object):
 
     def key_press(self, button, code):
         self.parent.body.original_widget = self.old_widget
-        self.parent.dlg_buttons_press(code)
+        dlg_data = dict(
+            key_code=code,
+        )
+        self.parent.dlg_buttons_press(dlg_data)
 
 
 class AddTaskDialog(Dialog):
@@ -160,21 +201,27 @@ class AddTaskDialog(Dialog):
                 return super(AddTaskDialog.DiaEdit, self).keypress(size, key)
 
     def __init__(self, parent, title, text, buttons, width=None, height=None):
-        super(AddTaskDialog, self).__init__(parent, title, text, buttons, width, height)
+        super(AddTaskDialog, self).__init__(parent, title, text, buttons, width,
+                                            height)
 
     def init_contents(self):
+        self.edit = urwid.Edit()
         contents = [
             urwid.Text(self.text),
             # AddTaskDialog.DiaEdit(),
-            urwid.Edit(),
+            urwid.LineBox(self.edit),
             urwid.Divider(),
             self.init_buttons()
         ]
         return contents
 
-
-
-
+    def key_press(self, button, code):
+        self.parent.body.original_widget = self.old_widget
+        dlg_data = dict(
+            key_code=code,
+            edit_txt=self.edit.edit_text
+        )
+        self.parent.dlg_buttons_press(dlg_data)
 
 if __name__ == "__main__":
     TaskFrame()
