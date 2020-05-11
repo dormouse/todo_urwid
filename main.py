@@ -105,8 +105,9 @@ class TaskFrame(object):
             ('title', "U Task"),
             f"{exitcode}",
         ]
-        self.update_header(header_text)
-
+        self.loop = urwid.MainLoop(self.view,
+                                   self.palette,
+                                   unhandled_input=self.handle_input)
         self.loop.run()
 
         """
