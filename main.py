@@ -1,7 +1,8 @@
 import urwid
 from prj_conf import PRJ_DIR
 from models.taskmodel import TaskModel
-from widgets.dialogs import Dialog, AddTaskDialog
+from widgets.dialogs import Dialog, AddTaskDialog, DialogExit, DialogM
+from dialog import DialogDisplay
 
 
 class TaskFrame(object):
@@ -47,7 +48,12 @@ class TaskFrame(object):
         self.loop = urwid.MainLoop(self.view,
                                    self.palette,
                                    unhandled_input=self.handle_input)
-        self.loop.run()
+
+    def main(self):
+        try:
+            self.loop.run()
+        except DialogExit as e:
+            return self.dlg_buttons_press(e.args[0])
 
     def update_header(self, text):
         self.view.header = urwid.AttrMap(urwid.Text(text), 'foot')
@@ -88,6 +94,24 @@ class TaskFrame(object):
         return txt
 
     def show_help(self):
+        text = 'test'
+        height = 20
+        width = 20
+        d = DialogDisplay(text, height, width, self.body)
+        d.add_buttons([("OK", 0)])
+        exitcode, exitstring = d.main()
+
+        header_text = [
+            ('title', "U Task"),
+            f"{exitcode}",
+        ]
+        self.update_header(header_text)
+
+        self.loop.run()
+
+        """
+        
+        self.overed_w = self.body
         buttons = [
             ('OK', 'help_ok'),
         ]
@@ -95,14 +119,17 @@ class TaskFrame(object):
         text = 'A Task build with Urwid.'
         d = Dialog(self, title, text, buttons)
         d.show()
+        """
 
-    def dlg_buttons_press(self, dlg_data):
+    def dlg_buttons_press(self, exitcode):
         header_text = [
             ('title', "U Task"),
-            f"{dlg_data['key_code']}",
+            f"{exitcode}",
         ]
         self.update_header(header_text)
+        self.body.original_widget = self.overed_w
 
+        """
         if dlg_data['key_code'] == 'create_ok':
             model_txt = f"- [ ] {dlg_data['edit_txt']}"
             index = len(self.task_model.all())
@@ -117,6 +144,7 @@ class TaskFrame(object):
             self.list_walker.set_focus(
                 index + self.list_walker_header_row_count
             )
+        """
 
     def handle_input(self, input_char):
         if input_char in ('q', 'Q'):
@@ -150,4 +178,5 @@ class TaskFrame(object):
 
 
 if __name__ == "__main__":
-    TaskFrame()
+    t = TaskFrame()
+    t.main()
